@@ -1,0 +1,60 @@
+# orduoryantiring — local geliştirme ortamı
+#
+# Kullanım:
+#   1) Kök dizinde `.env` oluştur:  cp .env.example .env
+#   2) Bağımlılıkları kur (tek sefer): docker compose run --rm php composer install
+#   3) Ayağa kaldır:                  docker compose up
+#
+# Servisler:
+#   php         -> http://localhost:8000   (Apache + PHP, docroot backend/public)
+#   phpmyadmin  -> http://localhost:8081
+#   db          -> localhost:3306          (host araçları buraya bağlanır)
+#
+# NOT: PHP/MariaDB sürümleri prod (cPanel) ile eşleşmeli. Prod sürümlerini teyit edince
+#      docker/php/Dockerfile (FROM) ve aşağıdaki db image satırını güncelle.
+
+services:
+  php:
+    build: ./docker/php
+    ports:
+      - "8000:80"
+    volumes:
+      - ./backend:/var/www/html
+    environment:
+      APP_ENV: local
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: ${DB_DATABASE:-orienteering}
+      DB_USERNAME: ${DB_USERNAME:-orienteering}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:10.6
+    ports:
+      # Host 3307 -> container 3306 (host'ta XAMPP 3306'yı kullandığı için çakışmayı önler).
+      # Container'lar içeride hâlâ 3306 kullanır. Host araçları (DBeaver vb.): localhost:3307
+      - "3307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MARIADB_DATABASE: ${DB_DATABASE:-orienteering}
+      MARIADB_USER: ${DB_USERNAME:-orienteering}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - dbdata:/var/lib/mysql
+      # Bu klasöre konan .sql dosyaları DB İLK oluştuğunda otomatik yüklenir.
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      UPLOAD_LIMIT: 256M
+    depends_on:
+      - db
+
+volumes:
+  dbdata:

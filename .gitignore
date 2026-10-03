@@ -1,0 +1,31 @@
+# Ortam / gizli bilgiler
+.env
+.env.*
+!.env.example
+**/.env
+!**/.env.example
+
+# Bağımlılıklar (yerelde composer/npm ile kurulur)
+node_modules/
+backend/vendor/
+
+# Build çıktıları
+dist/
+*.zip
+
+# Deploy paketi (build'den üretilir, FTP ile yüklenir)
+deploy/
+
+# Kullanıcı yüklemeleri
+backend/public/uploads/
+backend/private_uploads/
+
+# Gerçek kişisel veri içeren DB dökümü
+docker/db/init/01_orienteering.sql
+
+# Editör / OS / log
+.vscode/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+*.log

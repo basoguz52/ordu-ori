@@ -1,0 +1,17 @@
+# Tüm istekleri (gerçek dosya/dizin hariç) index.php'ye yönlendir.
+# Router (backend/src/core/Router.php) /api/* yollarını buradan alır.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Mevcut dosya veya dizin ise doğrudan servis et (uploads/, results.php, statik dosyalar)
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Aksi halde front controller'a düş
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Dizin listelemeyi kapat
+Options -Indexes

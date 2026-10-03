@@ -1,0 +1,392 @@
+{
+  "info": {
+    "name": "orduoryantiring API (local)",
+    "_postman_id": "a1b2c3d4-0000-4000-8000-orduoryantiring",
+    "description": "orduoryantiring.com.tr backend test akisi. Sirayla calistir (Collection Runner). Session cookie otomatik yonetilir. base_url varsayilan http://localhost:8000. Dosya yukleme istekleri (Upload ...) icin Body > form-data alanindan dosyayi elle sec.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "admin_email", "value": "admin@local.test" },
+    { "key": "admin_pass", "value": "Test1234" },
+    { "key": "manager_email", "value": "yonetici@local.test" },
+    { "key": "manager_pass", "value": "Parola123" },
+    { "key": "referee_email", "value": "hakem@local.test" },
+    { "key": "referee_pass", "value": "Test1234" },
+    { "key": "reg_email", "value": "" },
+    { "key": "pending_user_id", "value": "" },
+    { "key": "athlete_id", "value": "" },
+    { "key": "event_id", "value": "" },
+    { "key": "open_event_id", "value": "" },
+    { "key": "reg_id", "value": "" },
+    { "key": "post_id", "value": "" },
+    { "key": "post_slug", "value": "" },
+    { "key": "referee_user_id", "value": "" },
+    { "key": "category_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 Auth & Session",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200', () => pm.response.code === 200);",
+              "pm.test('is admin', () => pm.response.json().user.is_admin === true);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] }
+          }
+        },
+        {
+          "name": "Get Me (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/me", "host": ["{{base_url}}"], "path": ["api","me"] }
+          }
+        },
+        {
+          "name": "Register (new pending user)",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "pm.collectionVariables.set('reg_email', 'kayit_' + Date.now() + '@local.test');"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('201 created', () => pm.response.code === 201);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"full_name\": \"Yeni Yonetici\",\n  \"email\": \"{{reg_email}}\",\n  \"password\": \"Parola123\",\n  \"phone_number\": \"05551112233\"\n}" },
+            "url": { "raw": "{{base_url}}/api/register", "host": ["{{base_url}}"], "path": ["api","register"] }
+          }
+        },
+        {
+          "name": "Login as Pending (expect 403)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('403 account_pending', () => pm.response.code === 403);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{reg_email}}\",\n  \"password\": \"Parola123\"\n}" },
+            "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Admin: User Approval",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] }
+          }
+        },
+        {
+          "name": "List Pending Users",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "const j = pm.response.json();",
+              "const target = j.items.find(x => x.email === pm.collectionVariables.get('reg_email')) || j.items[0];",
+              "if (target) pm.collectionVariables.set('pending_user_id', target.id);",
+              "pm.test('has pending', () => j.items.length >= 0);"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/admin/users?status=pending", "host": ["{{base_url}}"], "path": ["api","admin","users"], "query": [ { "key": "status", "value": "pending" } ] }
+          }
+        },
+        {
+          "name": "Approve User (make club manager + new club)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('200 approved', () => pm.response.code === 200);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"is_club_manager\": true,\n  \"club_name\": \"Test Onay Kulubu\",\n  \"club_code\": \"TOK\"\n}" },
+            "url": { "raw": "{{base_url}}/api/admin/users/{{pending_user_id}}/approve", "host": ["{{base_url}}"], "path": ["api","admin","users","{{pending_user_id}}","approve"] }
+          }
+        },
+        {
+          "name": "List Active Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/admin/users?status=active", "host": ["{{base_url}}"], "path": ["api","admin","users"], "query": [ { "key": "status", "value": "active" } ] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Public: Clubs & Categories",
+      "item": [
+        {
+          "name": "List Clubs",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/clubs", "host": ["{{base_url}}"], "path": ["api","clubs"] } }
+        },
+        {
+          "name": "List Categories",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "const j = pm.response.json();",
+              "const c = j.items.find(x => (x.gender||'').toUpperCase()==='M') || j.items[0];",
+              "if (c) pm.collectionVariables.set('category_id', c.id);"
+            ] } }
+          ],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/categories", "host": ["{{base_url}}"], "path": ["api","categories"] } }
+        }
+      ]
+    },
+    {
+      "name": "03 Registration flow (Admin creates open event, Manager registers)",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        {
+          "name": "Create OPEN Event (wide window)",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "const j = pm.response.json();",
+              "pm.collectionVariables.set('open_event_id', j.id);",
+              "pm.test('201', () => pm.response.code === 201);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"POSTMAN Test Yarisi\",\n  \"location\": \"Ordu\",\n  \"start_date\": \"2026-12-01\",\n  \"end_date\": \"2026-12-01\",\n  \"type\": \"Sprint\",\n  \"is_registration_open\": 1,\n  \"registration_start_at\": \"2026-01-01 00:00\",\n  \"registration_end_at\": \"2026-12-31 23:59\"\n}" },
+            "url": { "raw": "{{base_url}}/api/events", "host": ["{{base_url}}"], "path": ["api","events"] }
+          }
+        },
+        {
+          "name": "Login as Club Manager",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{manager_email}}\",\n  \"password\": \"{{manager_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        {
+          "name": "Create Athlete",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "const j = pm.response.json();",
+              "pm.collectionVariables.set('athlete_id', j.id);",
+              "pm.test('201', () => pm.response.code === 201);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Sporcu\",\n  \"gender\": \"M\",\n  \"birth_year\": 2012,\n  \"national_id\": \"11111111111\",\n  \"license_no\": \"PM-1\",\n  \"si_chip_no\": \"SI-1\",\n  \"category_id\": {{category_id}}\n}" },
+            "url": { "raw": "{{base_url}}/api/athletes", "host": ["{{base_url}}"], "path": ["api","athletes"] }
+          }
+        },
+        {
+          "name": "List My Athletes",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/me/athletes", "host": ["{{base_url}}"], "path": ["api","me","athletes"] } }
+        },
+        {
+          "name": "Register Athlete to OPEN Event",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "const j = pm.response.json();",
+              "if (j.id) pm.collectionVariables.set('reg_id', j.id);",
+              "pm.test('201', () => pm.response.code === 201);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"event_id\": {{open_event_id}},\n  \"athlete_id\": {{athlete_id}},\n  \"category_id\": {{category_id}}\n}" },
+            "url": { "raw": "{{base_url}}/api/registrations", "host": ["{{base_url}}"], "path": ["api","registrations"] }
+          }
+        },
+        {
+          "name": "Register AGAIN (expect 409 already_registered)",
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('409', () => pm.response.code === 409);" ] } } ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"event_id\": {{open_event_id}},\n  \"athlete_id\": {{athlete_id}},\n  \"category_id\": {{category_id}}\n}" },
+            "url": { "raw": "{{base_url}}/api/registrations", "host": ["{{base_url}}"], "path": ["api","registrations"] }
+          }
+        },
+        {
+          "name": "My Registrations for Event",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/events/{{open_event_id}}/my-registrations", "host": ["{{base_url}}"], "path": ["api","events","{{open_event_id}}","my-registrations"] } }
+        },
+        {
+          "name": "Delete Registration",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/registrations/{{reg_id}}", "host": ["{{base_url}}"], "path": ["api","registrations","{{reg_id}}"] } }
+        },
+        {
+          "name": "Delete Athlete",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/athletes/{{athlete_id}}", "host": ["{{base_url}}"], "path": ["api","athletes","{{athlete_id}}"] } }
+        },
+        {
+          "name": "Login as Admin (cleanup)",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        {
+          "name": "Delete OPEN Event",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/events/{{open_event_id}}", "host": ["{{base_url}}"], "path": ["api","events","{{open_event_id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "04 Events (Admin CRUD + upload + CSV)",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        { "name": "List Events", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/events", "host": ["{{base_url}}"], "path": ["api","events"] } } },
+        {
+          "name": "Create Event",
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.collectionVariables.set('event_id', pm.response.json().id);", "pm.test('201', () => pm.response.code === 201);" ] } } ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"POSTMAN CRUD Etkinlik\",\n  \"location\": \"Ordu\",\n  \"start_date\": \"2026-10-05\",\n  \"end_date\": \"2026-10-05\",\n  \"type\": \"Orta\"\n}" },
+            "url": { "raw": "{{base_url}}/api/events", "host": ["{{base_url}}"], "path": ["api","events"] }
+          }
+        },
+        { "name": "Get Event", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/events/{{event_id}}", "host": ["{{base_url}}"], "path": ["api","events","{{event_id}}"] } } },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"POSTMAN CRUD Etkinlik (guncel)\",\n  \"is_registration_open\": 1\n}" },
+            "url": { "raw": "{{base_url}}/api/events/{{event_id}}", "host": ["{{base_url}}"], "path": ["api","events","{{event_id}}"] }
+          }
+        },
+        {
+          "name": "Upload Bulletin (PDF) [dosya sec]",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [ { "key": "bulletin", "type": "file", "src": null, "description": "Bir PDF dosyasi sec" } ] },
+            "url": { "raw": "{{base_url}}/api/events/{{event_id}}/bulletin", "host": ["{{base_url}}"], "path": ["api","events","{{event_id}}","bulletin"] }
+          }
+        },
+        { "name": "Delete Bulletin", "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/events/{{event_id}}/bulletin", "host": ["{{base_url}}"], "path": ["api","events","{{event_id}}","bulletin"] } } },
+        {
+          "name": "Export Registrations CSV (event 6)",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/events/6/registrations/export-csv", "host": ["{{base_url}}"], "path": ["api","events","6","registrations","export-csv"] } }
+        },
+        { "name": "Delete Event (cleanup)", "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/events/{{event_id}}", "host": ["{{base_url}}"], "path": ["api","events","{{event_id}}"] } } }
+      ]
+    },
+    {
+      "name": "05 CMS (Admin posts + media)",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        {
+          "name": "Create Post (announcement)",
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "const j = pm.response.json();", "pm.collectionVariables.set('post_id', j.id);", "pm.collectionVariables.set('post_slug', j.slug);", "pm.test('201', () => pm.response.code === 201);" ] } } ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Postman Duyurusu\",\n  \"kind\": \"announcement\",\n  \"body\": \"<p>Bu bir test duyurusudur.</p>\"\n}" },
+            "url": { "raw": "{{base_url}}/api/admin/posts", "host": ["{{base_url}}"], "path": ["api","admin","posts"] }
+          }
+        },
+        { "name": "Public List Posts (announcement)", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/posts?kind=announcement", "host": ["{{base_url}}"], "path": ["api","posts"], "query": [ { "key": "kind", "value": "announcement" } ] } } },
+        { "name": "Public Get Post by slug", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/posts/{{post_slug}}", "host": ["{{base_url}}"], "path": ["api","posts","{{post_slug}}"] } } },
+        {
+          "name": "Upload Cover (image) [dosya sec]",
+          "request": { "method": "POST", "header": [], "body": { "mode": "formdata", "formdata": [ { "key": "cover", "type": "file", "src": null, "description": "JPG/PNG/WEBP/GIF sec" } ] }, "url": { "raw": "{{base_url}}/api/admin/posts/{{post_id}}/cover", "host": ["{{base_url}}"], "path": ["api","admin","posts","{{post_id}}","cover"] } }
+        },
+        {
+          "name": "Upload Media (image) [dosya sec]",
+          "request": { "method": "POST", "header": [], "body": { "mode": "formdata", "formdata": [ { "key": "media", "type": "file", "src": null, "description": "JPG/PNG/WEBP/GIF sec" } ] }, "url": { "raw": "{{base_url}}/api/admin/posts/{{post_id}}/media", "host": ["{{base_url}}"], "path": ["api","admin","posts","{{post_id}}","media"] } }
+        },
+        {
+          "name": "Update Post (set draft)",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"status\": \"draft\"\n}" }, "url": { "raw": "{{base_url}}/api/admin/posts/{{post_id}}", "host": ["{{base_url}}"], "path": ["api","admin","posts","{{post_id}}"] } }
+        },
+        { "name": "Admin List Posts (all statuses)", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/admin/posts", "host": ["{{base_url}}"], "path": ["api","admin","posts"] } } },
+        { "name": "Delete Post (cleanup)", "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/admin/posts/{{post_id}}", "host": ["{{base_url}}"], "path": ["api","admin","posts","{{post_id}}"] } } }
+      ]
+    },
+    {
+      "name": "06 Referee (Hakem self-service)",
+      "item": [
+        {
+          "name": "Login as Referee",
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "const j = pm.response.json();", "if (j.user) pm.collectionVariables.set('referee_user_id', j.user.id);", "pm.test('200', () => pm.response.code === 200);" ] } } ],
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{referee_email}}\",\n  \"password\": \"{{referee_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        { "name": "Get Referee Profile", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/me/referee-profile", "host": ["{{base_url}}"], "path": ["api","me","referee-profile"] } } },
+        {
+          "name": "Update Referee Profile",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"full_name\": \"Postman Hakem\",\n  \"phone_number\": \"05551234567\",\n  \"license_no\": \"HK-PM-1\",\n  \"registry_no\": \"SICIL-PM\",\n  \"bio\": \"Test hakem profili.\"\n}" }, "url": { "raw": "{{base_url}}/api/me/referee-profile", "host": ["{{base_url}}"], "path": ["api","me","referee-profile"] } }
+        },
+        {
+          "name": "Upload Photo (image) [dosya sec]",
+          "request": { "method": "POST", "header": [], "body": { "mode": "formdata", "formdata": [ { "key": "photo", "type": "file", "src": null, "description": "JPG/PNG/WEBP/GIF sec" } ] }, "url": { "raw": "{{base_url}}/api/me/referee-profile/photo", "host": ["{{base_url}}"], "path": ["api","me","referee-profile","photo"] } }
+        },
+        { "name": "List Referee Events", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/me/referee/events", "host": ["{{base_url}}"], "path": ["api","me","referee","events"] } } },
+        {
+          "name": "Set Preference (event 6)",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"wants_to_serve\": true,\n  \"note\": \"Bu yarista gorev almak istiyorum\"\n}" }, "url": { "raw": "{{base_url}}/api/me/referee/events/6/preference", "host": ["{{base_url}}"], "path": ["api","me","referee","events","6","preference"] } }
+        }
+      ]
+    },
+    {
+      "name": "07 Kurumsal & Content Pages",
+      "item": [
+        { "name": "Kurumsal Hakemlerimiz (public)", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/kurumsal/hakemler", "host": ["{{base_url}}"], "path": ["api","kurumsal","hakemler"] } } },
+        { "name": "Kurumsal Kuluplerimiz (public)", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/kurumsal/kulupler", "host": ["{{base_url}}"], "path": ["api","kurumsal","kulupler"] } } },
+        {
+          "name": "Login as Admin",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        {
+          "name": "Admin Upsert Page (federasyonumuz)",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"title\": \"Federasyonumuz\",\n  \"body\": \"<p>TOF Ordu il temsilciligi hakkinda.</p>\"\n}" }, "url": { "raw": "{{base_url}}/api/admin/pages/federasyonumuz", "host": ["{{base_url}}"], "path": ["api","admin","pages","federasyonumuz"] } }
+        },
+        { "name": "Public Get Page (federasyonumuz)", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/pages/federasyonumuz", "host": ["{{base_url}}"], "path": ["api","pages","federasyonumuz"] } } },
+        { "name": "Admin List Pages", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/admin/pages", "host": ["{{base_url}}"], "path": ["api","admin","pages"] } } }
+      ]
+    },
+    {
+      "name": "08 Admin: Referee Assignment (event 6)",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_pass}}\"\n}" }, "url": { "raw": "{{base_url}}/api/login", "host": ["{{base_url}}"], "path": ["api","login"] } }
+        },
+        {
+          "name": "Assign Referee to Event 6",
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('201', () => pm.response.code === 201);" ] } } ],
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{\n  \"user_id\": {{referee_user_id}},\n  \"referee_type_id\": 1\n}" }, "url": { "raw": "{{base_url}}/api/admin/events/6/referees", "host": ["{{base_url}}"], "path": ["api","admin","events","6","referees"] } }
+        },
+        { "name": "List Event 6 Referees (assigned + preferences)", "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/api/admin/events/6/referees", "host": ["{{base_url}}"], "path": ["api","admin","events","6","referees"] } } },
+        { "name": "Unassign Referee from Event 6", "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/api/admin/events/6/referees/{{referee_user_id}}", "host": ["{{base_url}}"], "path": ["api","admin","events","6","referees","{{referee_user_id}}"] } } }
+      ]
+    }
+  ]
+}

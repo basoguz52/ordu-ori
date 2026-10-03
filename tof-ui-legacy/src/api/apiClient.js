@@ -1,0 +1,259 @@
+import { apiFetch } from "./http";
+
+export const apiClient = {
+  // Auth
+  login(email, password) {
+    return apiFetch("/api/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+  },
+  me() {
+    return apiFetch("/api/me", { method: "GET" });
+  },
+  logout() {
+    return apiFetch("/api/logout", { method: "POST" });
+  },
+
+  // Public
+  async listEvents({ q } = {}) {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+    const data = await apiFetch(`/api/events${qs}`);
+    return data.items; // backend Response: {items: [...]}
+  },
+
+  async createEvent(payload) {
+    const data = await apiFetch("/api/events", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return data; // {id}
+  },
+
+  async updateEvent(id, patch) {
+    await apiFetch(`/api/events/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    });
+    return true;
+  },
+
+  async deleteEvent(id) {
+    await apiFetch(`/api/events/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  async getEvent(eventId) {
+    const data = await apiFetch(`/api/events/${eventId}`);
+    return data.item;
+  },
+
+  async downloadEventCsv(eventId) {
+    return await apiFetchBlob(`/api/events/${eventId}/registrations/export-csv`, {
+      method: "GET",
+    });
+  },
+
+  async listEventRegistrations(eventId) {
+    const data = await apiFetch(`/api/events/${eventId}/registrations`);
+    return data.items;
+  },
+
+  async listEventResults(eventId) {
+    const data = await apiFetch(`/api/events/${eventId}/results`);
+    return data.items;
+  },
+
+  async uploadEventBulletin(eventId, file) {
+    const fd = new FormData();
+    fd.append("bulletin", file);
+    // Backend route: POST /api/events/:id/bulletin
+    return apiFetchForm(`/api/events/${eventId}/bulletin`, fd, { method: "POST" });
+  },
+
+  async uploadEventOnCikis(eventId, file) {
+    const fd = new FormData();
+    fd.append("oncikis", file);
+    // Backend route: POST /api/events/:id/oncikis
+    return apiFetchForm(`/api/events/${eventId}/oncikis`, fd, { method: "POST" });
+  },
+
+  async uploadEventKesinCikis(eventId, file) {
+    const fd = new FormData();
+    fd.append("kesincikis", file);
+    return apiFetchForm(`/api/events/${eventId}/kesincikis`, fd, { method: "POST" });
+  },
+
+  async deleteEventBulletin(eventId) {
+    await apiFetch(`/api/events/${eventId}/bulletin`, { method: "DELETE" });
+    return true;
+  },
+
+  async deleteEventOnCikis(eventId) {
+    await apiFetch(`/api/events/${eventId}/oncikis`, { method: "DELETE" });
+    return true;
+  },
+
+  async deleteEventKesinCikis(eventId, file) {
+    const fd = new FormData();
+    fd.append("kesincikis", file);
+    return apiFetchForm(`/api/events/${eventId}/kesincikis`, fd, { method: "DELETE" });
+  },
+
+
+  async listCategoriesForEvent(eventId) {
+    // Şimdilik mapping yoksa fallback: tüm kategoriler
+    // (İleride /api/events/:id/categories yapılınca burayı değiştirirsin)
+    return this.listCategories();
+  },
+
+  async listCategories() {
+    const data = await apiFetch(`/api/categories`);
+    return data?.items ?? [];
+  },
+
+  async listMyEventRegistrations(eventId) {
+    const data = await apiFetch(`/api/events/${eventId}/my-registrations`);
+    return data.items;
+  },
+
+  async updateAthlete(id, patch) {
+    const data = await apiFetch(`/api/athletes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    });
+    return data?.item ?? data;
+  },
+
+
+  // User (auth required)
+  async listMyAthletes() {
+    const data = await apiFetch(`/api/me/athletes`);
+    return data.items;
+  },
+
+  async createAthlete(payload) {
+    const data = await apiFetch("/api/athletes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return data; // {id}
+  },
+
+  changePassword(current_password, new_password, new_password_confirm) {
+    return apiFetch("/api/me/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password, new_password_confirm }),
+    });
+  },
+
+  async updateAthlete(id, patch) {
+    await apiFetch(`/api/athletes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    });
+    return true;
+  },
+
+  async deleteAthlete(id) {
+    await apiFetch(`/api/athletes/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+
+  async createRegistration({ event_id, athlete_id, category_id }) {
+    const data = await apiFetch(`/api/registrations`, {
+      method: "POST",
+      body: JSON.stringify({ event_id, athlete_id, category_id }),
+    });
+    return data; // {id: ...}
+  },
+
+  async deleteRegistration(id) {
+    await apiFetch(`/api/registrations/${id}`, { method: "DELETE" });
+    return true;
+  },
+
+  async updateRegistrationStatus(id, status) {
+    await apiFetch(`/api/registrations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
+    return true;
+  },
+
+  async listClubs() {
+    const data = await apiFetch("/api/clubs");
+    return data.items;
+  },
+
+
+};
+
+async function apiFetchBlob(url, options = {}) {
+  const res = await fetch(url, {
+    credentials: "include",
+    cache: "no-store",
+    ...options,
+    headers: {
+      Accept: "text/csv",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!res.ok) {
+    let message = "İşlem başarısız.";
+    try {
+      const data = await res.json();
+      message = data?.message || data?.error || message;
+    } catch {
+      // response json değilse default message kalır
+    }
+    throw new Error(message);
+  }
+
+  const blob = await res.blob();
+
+  let filename = "download.csv";
+  const disposition =
+    res.headers.get("content-disposition") ||
+    res.headers.get("Content-Disposition") ||
+    "";
+
+  const match =
+    disposition.match(/filename\*=UTF-8''([^;]+)/i) ||
+    disposition.match(/filename="?([^"]+)"?/i);
+
+  if (match) {
+    filename = decodeURIComponent(match[1]);
+  }
+
+  return { blob, filename };
+}
+
+async function apiFetchForm(url, formData, { method = "POST" } = {}) {
+  const res = await fetch(url, {
+    method,
+    body: formData,
+    credentials: "include",
+  });
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  if (!res.ok) {
+    const msg =
+      (data && (data.error || data.message)) ||
+      (typeof data === "string" && data) ||
+      res.statusText ||
+      "Upload hatası";
+    throw new Error(msg);
+  }
+
+  return data;
+}

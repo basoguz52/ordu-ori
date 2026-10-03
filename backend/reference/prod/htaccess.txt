@@ -1,0 +1,7 @@
+# Prod: /public_html/api/.htaccess
+RewriteEngine On
+
+# Var olan dosya veya klasör yoksa index.php'ye düşür
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]

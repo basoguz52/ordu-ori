@@ -25,6 +25,7 @@ final class EventController
     'is_registration_open', 'registration_start_at', 'registration_end_at',
     'bulletin_path', 'oncikis_path', 'kesincikis_path',
     'slug', 'folder_key', 'season_start_year', 'season_end_year',
+    'counts_for_season',
   ];
 
   // --- Public API: list/get/create/update/delete ---------------------------------
@@ -124,6 +125,7 @@ final class EventController
     $e->slug                  = null;
     $e->season_start_year     = $ssy;
     $e->season_end_year       = $sey;
+    $e->counts_for_season     = !empty($b['counts_for_season']) ? 1 : 0;
     $e->save();
 
     // folder_key = LPAD(id,5,'0')
@@ -189,6 +191,10 @@ final class EventController
     }
     if (array_key_exists('is_registration_open', $b)) {
       $e->is_registration_open = ((int)$b['is_registration_open']) ? 1 : 0;
+      $touched = true;
+    }
+    if (array_key_exists('counts_for_season', $b)) {
+      $e->counts_for_season = ((int)$b['counts_for_season']) ? 1 : 0;
       $touched = true;
     }
 

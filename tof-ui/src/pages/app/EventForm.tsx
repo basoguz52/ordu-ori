@@ -28,6 +28,7 @@ interface FormState {
   registration_end_at: string;
   season_start_year: string;
   season_end_year: string;
+  counts_for_season: boolean;
 }
 
 const EMPTY: FormState = {
@@ -42,6 +43,7 @@ const EMPTY: FormState = {
   registration_end_at: "",
   season_start_year: "",
   season_end_year: "",
+  counts_for_season: false,
 };
 
 /** "YYYY-MM-DD HH:MM:SS" → "YYYY-MM-DDTHH:MM" (datetime-local input). */
@@ -105,6 +107,7 @@ export default function EventForm() {
       registration_end_at: toLocalInput(event.registration_end_at),
       season_start_year: event.season_start_year?.toString() ?? "",
       season_end_year: event.season_end_year?.toString() ?? "",
+      counts_for_season: !!event.counts_for_season,
     });
     setLoaded(true);
   }, [isEdit, event, loaded]);
@@ -148,6 +151,7 @@ export default function EventForm() {
       is_registration_open: form.is_registration_open ? 1 : 0,
       registration_start_at: form.registration_start_at || null,
       registration_end_at: form.registration_end_at || null,
+      counts_for_season: form.counts_for_season ? 1 : 0,
     };
 
     try {
@@ -291,6 +295,22 @@ export default function EventForm() {
                 className="size-4 rounded border-input accent-primary"
               />
               <span className="text-sm font-medium">Kayıtlar açık</span>
+            </label>
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={form.counts_for_season}
+                onChange={(e) => set("counts_for_season", e.target.checked)}
+                className="mt-0.5 size-4 rounded border-input accent-primary"
+              />
+              <span className="text-sm">
+                <span className="font-medium">Sezon puanına dahil</span>
+                <span className="block text-muted-foreground">
+                  İşaretliyse bu yarışın puanları (her gün ayrı) Sezon Puan
+                  Tablosu&apos;nda gösterilir.
+                </span>
+              </span>
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">

@@ -114,6 +114,7 @@ $router->add('GET', '/api/events/{id}', fn($req, $p) => EventController::get($re
 // Public registrations/results for event
 $router->add('GET', '/api/events/{id}/registrations', fn($req, $p) => RegistrationController::listForEvent($req, $p));
 $router->add('GET', '/api/events/{id}/results', fn($req, $p) => ResultController::listForEvent($req, $p));
+$router->add('GET', '/api/season-standings', fn($req) => ResultController::seasonStandings($req));
 
 $router->add('GET', '/api/clubs', fn($req) => ClubController::list($req));
 

@@ -164,14 +164,22 @@ export default function Sonuclar() {
         title="Sonuçlar"
         description="Geçmiş yarışların resmi sonuçları, genel klasman ve ara zamanları."
         actions={
-          <a
-            href={LIVE_RESULTS_URL}
-            target="_blank"
-            rel="noreferrer"
-            className={cn(buttonVariants({ variant: "default" }))}
-          >
-            <Radio /> Canlı Sonuçlar
-          </a>
+          <>
+            <Link
+              to="/sonuclar/sezon"
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              <Medal /> Sezon Puan Tablosu
+            </Link>
+            <a
+              href={LIVE_RESULTS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ variant: "default" }))}
+            >
+              <Radio /> Canlı Sonuçlar
+            </a>
+          </>
         }
       />
 

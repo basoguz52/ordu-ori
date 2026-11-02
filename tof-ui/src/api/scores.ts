@@ -163,3 +163,44 @@ export function useDeleteScoreStage(id: number | string) {
     onSuccess: () => invalidateScores(qc, id),
   });
 }
+
+/* ------------------------------ Sezon ------------------------------ */
+
+export interface SeasonRace {
+  /** "<event_id>-<stage_no>" — SeasonEntry.results anahtarı */
+  key: string;
+  event_id: number;
+  stage_no: number;
+  event_name: string;
+  /** Çok günlü yarışta "Yarış Adı · 2. Gün" */
+  label: string;
+  date: string;
+}
+
+export interface SeasonEntry {
+  name: string;
+  club_name: string | null;
+  total: number;
+  rank: number | null;
+  results: Record<string, { status: ScoreStatus; points: number }>;
+}
+
+export interface SeasonStandings {
+  /** Sezon başlangıç yılı (2025 → 2025–2026); veri yoksa 0 */
+  season: number;
+  seasons: number[];
+  races: SeasonRace[];
+  categories: { code: string; name: string; entries: SeasonEntry[] }[];
+}
+
+export function useSeasonStandings(season?: number) {
+  return useQuery({
+    queryKey: ["season-standings", season ?? "latest"],
+    queryFn: async () => {
+      const { data } = await api.get<SeasonStandings>("/season-standings", {
+        params: season ? { season } : undefined,
+      });
+      return data;
+    },
+  });
+}

@@ -18,6 +18,7 @@ class Event extends Model
         'end_date',
         'season_start_year',
         'season_end_year',
+        'counts_for_season',
         'location',
         'is_registration_open',
         'registration_start_at',

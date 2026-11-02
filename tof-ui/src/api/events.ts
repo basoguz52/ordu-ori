@@ -16,6 +16,7 @@ export interface EventItem {
   folder_key: string | null;
   season_start_year: number | null;
   season_end_year: number | null;
+  counts_for_season?: number;
   bulletin_url?: string;
   oncikis_url?: string;
   kesincikis_url?: string;
@@ -87,6 +88,7 @@ export interface EventInput {
   registration_end_at?: string | null;
   season_start_year?: number | null;
   season_end_year?: number | null;
+  counts_for_season?: number;
 }
 
 export type EventFileKind = "bulletin" | "oncikis" | "kesincikis";

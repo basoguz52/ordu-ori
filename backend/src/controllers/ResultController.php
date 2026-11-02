@@ -71,14 +71,111 @@ final class ResultController
       unset($entry);
     }
 
+    $stageList = array_keys($stages);
+    sort($stageList);
+
+    Response::json([
+      'event_id'   => $eventId,
+      'stages'     => $stageList,
+      'categories' => self::rankCategories($cats),
+    ]);
+  }
+
+  /**
+   * GET /api/season-standings?season=2025 (public)
+   * "Sezon puanına dahil" işaretli yarışların her günü ayrı sütun; kategori bazında
+   * sporcuların tüm sonuçları tek tabloda. season verilmezse en son sezon.
+   */
+  public static function seasonStandings(Request $req): void
+  {
+    $rows = Db::pdo()->query("
+      SELECT e.id AS event_id, e.name AS event_name, e.start_date,
+             COALESCE(e.season_start_year,
+                      IF(MONTH(e.start_date) >= 9, YEAR(e.start_date), YEAR(e.start_date) - 1)) AS season,
+             r.stage_no, r.athlete_id, r.category_code, r.first_name, r.last_name, r.club_name,
+             r.status, r.points,
+             c.id AS category_order, c.name AS category_name
+      FROM event_results r
+      JOIN events e ON e.id = r.event_id
+      LEFT JOIN categories c ON c.id = r.category_id
+      WHERE e.counts_for_season = 1 AND r.category_code IS NOT NULL
+      ORDER BY e.start_date, e.id, r.stage_no
+    ")->fetchAll();
+
+    $seasons = array_values(array_unique(array_map(fn($r) => (int)$r['season'], $rows)));
+    rsort($seasons);
+    $season = isset($req->query['season']) ? (int)$req->query['season'] : ($seasons[0] ?? 0);
+
+    // Önce yarış-günlerini topla (gün sayısı etiket için gerekli).
+    $stagesPerEvent = [];
+    foreach ($rows as $r) {
+      if ((int)$r['season'] !== $season) continue;
+      $stagesPerEvent[(int)$r['event_id']][(int)$r['stage_no']] = true;
+    }
+
+    $races = [];
+    $cats = [];
+    foreach ($rows as $r) {
+      if ((int)$r['season'] !== $season) continue;
+
+      $eventId = (int)$r['event_id'];
+      $stage = (int)$r['stage_no'];
+      $raceKey = $eventId . '-' . $stage;
+      if (!isset($races[$raceKey])) {
+        $multi = count($stagesPerEvent[$eventId]) > 1;
+        $races[$raceKey] = [
+          'key'        => $raceKey,
+          'event_id'   => $eventId,
+          'stage_no'   => $stage,
+          'event_name' => $r['event_name'],
+          'label'      => $r['event_name'] . ($multi ? " · {$stage}. Gün" : ''),
+          'date'       => date('Y-m-d', strtotime($r['start_date'] . ' +' . ($stage - 1) . ' day')),
+        ];
+      }
+
+      $code = (string)$r['category_code'];
+      $cats[$code] ??= [
+        'code'    => $code,
+        'name'    => $r['category_name'] ?? $code,
+        'order'   => $r['category_order'] !== null ? (int)$r['category_order'] : PHP_INT_MAX,
+        'entries' => [],
+      ];
+
+      // Kişi: eşleşmişse sporcu id'si, değilse ad + kulüp (yarışlar arası birleştirme).
+      $name = trim($r['first_name'] . ' ' . $r['last_name']);
+      $key = $r['athlete_id'] !== null
+        ? 'a' . $r['athlete_id']
+        : 'n' . mb_strtolower($name . '|' . $r['club_name'], 'UTF-8');
+
+      $entry = &$cats[$code]['entries'][$key];
+      $entry ??= ['name' => $name, 'club_name' => $r['club_name'], 'total' => 0, 'results' => []];
+      $entry['club_name'] = $r['club_name'];
+      $entry['total'] += (int)$r['points'];
+      $entry['results'][$raceKey] = ['status' => $r['status'], 'points' => (int)$r['points']];
+      unset($entry);
+    }
+
+    Response::json([
+      'season'     => $season,
+      'seasons'    => $seasons,
+      'races'      => array_values($races),
+      'categories' => self::rankCategories($cats),
+    ]);
+  }
+
+  /**
+   * Kategorileri sırala, her kategoride sporcuları toplam puana göre diz ve sıra ver.
+   * Eşit toplam aynı sırayı alır; 0 puan sıralanmaz.
+   */
+  private static function rankCategories(array $cats): array
+  {
     usort($cats, fn($a, $b) => [$a['order'], $a['code']] <=> [$b['order'], $b['code']]);
 
-    $categories = [];
+    $out = [];
     foreach ($cats as $cat) {
       $entries = array_values($cat['entries']);
       usort($entries, fn($a, $b) => [$b['total'], $a['name']] <=> [$a['total'], $b['name']]);
 
-      // Toplam sırası: eşit toplam aynı sırayı alır; 0 puan sıralanmaz.
       $prevTotal = null;
       $prevRank = 0;
       foreach ($entries as $i => &$e) {
@@ -92,17 +189,9 @@ final class ResultController
       }
       unset($e);
 
-      $categories[] = ['code' => $cat['code'], 'name' => $cat['name'], 'entries' => $entries];
+      $out[] = ['code' => $cat['code'], 'name' => $cat['name'], 'entries' => $entries];
     }
-
-    $stageList = array_keys($stages);
-    sort($stageList);
-
-    Response::json([
-      'event_id'   => $eventId,
-      'stages'     => $stageList,
-      'categories' => $categories,
-    ]);
+    return $out;
   }
 
   /* ------------------------------ Admin ------------------------------ */

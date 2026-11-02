@@ -19,6 +19,8 @@ export interface EventItem {
   bulletin_url?: string;
   oncikis_url?: string;
   kesincikis_url?: string;
+  /** İçe aktarılmış puanlı sonuç (CSV) var mı — yalnızca liste yanıtında. */
+  has_scores?: boolean;
 }
 
 export type RegStatus = "open" | "closed" | "not_started" | "ended";

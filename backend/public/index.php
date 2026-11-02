@@ -197,8 +197,11 @@ $router->add('GET', '/api/admin/storage-check', fn($req) => AdminController::sto
 $router->add('GET', '/api/admin/settings/ftp', fn($req) => SettingsController::getFtp($req));
 $router->add('PUT', '/api/admin/settings/ftp', fn($req) => SettingsController::updateFtp($req));
 
-// Result upsert (auth required)
-$router->add('PUT', '/api/results', fn($req) => ResultController::upsert($req));
+// Puanlı sonuçlar (admin): OE2010 CSV içe aktarma, gün bazında
+$router->add('GET',    '/api/admin/events/{id}/scoring', fn($req, $p) => ResultController::adminStatus($req, $p));
+$router->add('POST',   '/api/admin/events/{id}/scoring/{stage}/upload', fn($req, $p) => ResultController::adminUpload($req, $p));
+$router->add('POST',   '/api/admin/events/{id}/scoring/{stage}/import', fn($req, $p) => ResultController::adminImportInbox($req, $p));
+$router->add('DELETE', '/api/admin/events/{id}/scoring/{stage}', fn($req, $p) => ResultController::adminDeleteStage($req, $p));
 
 
 // Dispatch

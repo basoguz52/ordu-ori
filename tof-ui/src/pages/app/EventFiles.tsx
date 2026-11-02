@@ -23,13 +23,14 @@ import {
   type StorageCheck,
 } from "@/api/events";
 import { useResultProbes, resultFileUrl } from "@/api/results";
-import { useFtpSettings, eventRemoteDir } from "@/api/settings";
+import { useFtpSettings, eventRemoteDir, type FtpSettings } from "@/api/settings";
 import { ApiError } from "@/lib/apiClient";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
 import { CopyField } from "@/components/common/CopyField";
 import { EventFilesSection } from "@/pages/app/EventFilesSection";
 import { EventFileRow, formatBytes } from "@/pages/app/EventFileRow";
+import { EventScoringSection } from "@/pages/app/EventScoringSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -408,12 +409,126 @@ function FtpSection({ event }: { event: EventItem }) {
                 <strong>Sonuç Dosyaları</strong> bölümünden de yükleyebilirsiniz.
               </span>
             </div>
+
+            <CsvFtpBlock event={event} ftp={ftp} folderKey={folderKey} />
           </>
         )}
       </CardContent>
     </Card>
   );
 }
+
+/** Gün sayısı: başlangıç–bitiş (backend ResultController::stageCount ile aynı kural). */
+function stageCount(event: EventItem): number {
+  const start = new Date(event.start_date);
+  const end = new Date(event.end_date);
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  return Number.isFinite(days) && days >= 1 ? Math.min(days, 9) : 1;
+}
+
+/** Puan CSV'si: ayrı (gizli gelen kutulu) FTP hesabının kopyalanabilir bilgileri. */
+function CsvFtpBlock({
+  event,
+  ftp,
+  folderKey,
+}: {
+  event: EventItem;
+  ftp: FtpSettings;
+  folderKey: string;
+}) {
+  const days = stageCount(event);
+
+  return (
+    <div className="space-y-4 border-t pt-4">
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">Puan CSV'si (gizli FTP hesabı)</p>
+          <Badge variant="muted">Sitede yayınlanmaz</Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          CSV, TC kimlik numaralarını içerdiği için yukarıdaki hesapla değil,
+          yalnızca gizli gelen kutusunu gören ayrı hesapla yüklenir. Gelen dosya,
+          siz <strong>Puanlı Sonuçlar</strong> bölümünden “İçe aktar” diyene
+          kadar puanları değiştirmez.
+        </p>
+      </div>
+
+      {!ftp.csv_user ? (
+        <div className="flex flex-col items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <span>
+              CSV FTP hesabı henüz girilmemiş. Ayarlar sayfasından ekleyin ya
+              da CSV'yi <strong>Puanlı Sonuçlar</strong> bölümünden doğrudan
+              yükleyin.
+            </span>
+          </div>
+          <Link
+            to="/app/ayarlar"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <Settings /> Ayarlara Git
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CopyField label="FTP Sunucu" value={ftp.host} />
+            <CopyField label="Port" value={ftp.port || "21"} />
+            <CopyField label="Kullanıcı Adı" value={ftp.csv_user} />
+            <CopyField label="Şifre" value={ftp.csv_pass} secret />
+            <CopyField
+              className="sm:col-span-2"
+              label="Hedef Dizin (bu yarış)"
+              value={`/${folderKey}`}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              Dosya adları (her gün için ayrı dosya)
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {Array.from({ length: days }, (_, i) => (
+                <CopyField
+                  key={i}
+                  label={days > 1 ? `${i + 1}. Gün` : "Yarış"}
+                  value={`gun${i + 1}.csv`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+            <p className="mb-2 font-medium">OE2010 ile adım adım</p>
+            <ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
+              <li>
+                “Raporu dışa aktar” penceresinde{" "}
+                <strong>Virgülle ayrılmış sütunlar (CSV)</strong> seçin, ayraç
+                noktalı virgül kalsın, “Excel zaman formatı” işaretsiz olsun.
+              </li>
+              <li>
+                Dosyayı bilgisayara <code>gun1.csv</code> adıyla kaydedin (2.
+                gün <code>gun2.csv</code>…). FTP'ye bu adla gider.
+              </li>
+              <li>
+                “Dosyaları internete yükle” penceresine yukarıdaki Sunucu,
+                Kullanıcı, Şifre ve Hedef Dizin değerlerini yapıştırın;
+                mümkünse <strong>Güvenli bağlantı (SSL/TLS)</strong> açık
+                olsun.
+              </li>
+              <li>Karşıya yükleyin.</li>
+              <li>
+                <strong>Puanlı Sonuçlar</strong> bölümünde “İçe aktar” deyin.
+              </li>
+            </ol>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 /* --------------------------------- Sayfa --------------------------------- */
 
@@ -451,6 +566,7 @@ export default function EventFiles() {
 
       <EventFilesSection event={event} />
       <ResultsSection event={event} />
+      <EventScoringSection event={event} />
       <FtpSection event={event} />
       <PrivateSection event={event} />
     </div>

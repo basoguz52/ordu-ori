@@ -10,6 +10,11 @@ export interface FtpSettings {
   base_dir: string;
   passive: string; // "1" | "0"
   note: string;
+  /** Puan CSV'si için ayrı FTP hesabı (gizli gelen kutusu). */
+  csv_user: string;
+  csv_pass: string;
+  /** Sunucu yazar (salt okunur): gelen kutusunun mutlak yolu = CSV FTP hesabının ana klasörü. */
+  csv_inbox_dir?: string;
 }
 
 export function useFtpSettings() {

@@ -23,6 +23,8 @@ const EMPTY: FtpSettings = {
   base_dir: "uploads/events",
   passive: "1",
   note: "",
+  csv_user: "",
+  csv_pass: "",
 };
 
 export default function Settings() {
@@ -172,6 +174,47 @@ export default function Settings() {
                     rows={2}
                     placeholder="Kart altında gösterilecek ek açıklama."
                   />
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="space-y-1">
+                  <p className="font-medium">Puan CSV'si — ayrı FTP hesabı</p>
+                  <p className="text-sm text-muted-foreground">
+                    Sonuç CSV'si sporcuların TC kimlik numaralarını içerir; bu
+                    yüzden herkese açık klasöre değil, web dışındaki gizli
+                    gelen kutusuna yüklenir. cPanel'de yeni bir FTP hesabı açıp
+                    ana klasörünü aşağıdaki yol yapın. Sunucu ve port yukarıdakiyle
+                    aynıdır.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Gelen kutusu (FTP hesabının ana klasörü)</Label>
+                  <p className="break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
+                    {data?.csv_inbox_dir || "Gizli depolama klasörü bulunamadı"}
+                  </p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="csv_user">Kullanıcı Adı</Label>
+                    <Input
+                      id="csv_user"
+                      value={form.csv_user}
+                      onChange={(e) => set("csv_user", e.target.value)}
+                      autoComplete="off"
+                      placeholder="puan@orduoryantiring.com.tr"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="csv_pass">Şifre</Label>
+                    <Input
+                      id="csv_pass"
+                      type="text"
+                      value={form.csv_pass}
+                      onChange={(e) => set("csv_pass", e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
                 </div>
               </div>
 

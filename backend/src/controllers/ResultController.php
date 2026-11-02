@@ -1,72 +1,322 @@
 <?php
 
-final class ResultController {
-  public static function listForEvent(Request $req, array $params): void {
-    $eventId = (int)$params['id'];
+use App\Services\ResultImportService;
+use App\Support\ApiException;
+
+/**
+ * Puanlı sonuçlar.
+ *  - Public: GET /api/events/{id}/results → kategori bazında gün gün süre/durum/puan + toplam.
+ *  - Admin : OE2010 CSV'sini gün bazında içe aktarma (panelden yükleme ya da FTP gelen kutusu).
+ */
+final class ResultController
+{
+  private const MAX_STAGES = 9;
+
+  /** GET /api/events/{id}/results (public) */
+  public static function listForEvent(Request $req, array $params): void
+  {
+    $eventId = (int)($params['id'] ?? 0);
     $pdo = Db::pdo();
 
+    $st = $pdo->prepare("SELECT id FROM events WHERE id = ?");
+    $st->execute([$eventId]);
+    if (!$st->fetch()) {
+      Response::error('event_not_found', 'Event not found', 404);
+      return;
+    }
+
     $st = $pdo->prepare("
-      SELECT
-        r.id, r.event_id, r.athlete_id, r.category_id, r.time_ms, r.status,
-        a.first_name, a.last_name, a.license_no, a.si_chip_no,
-        c.code AS category_code, c.name AS category_name,
-        cl.name AS club_name, cl.code AS club_code
+      SELECT r.stage_no, r.athlete_id, r.category_code, r.first_name, r.last_name, r.club_name,
+             r.time_ms, r.status, r.position, r.points,
+             c.id AS category_order, c.name AS category_name
       FROM event_results r
-      JOIN athletes a ON a.id = r.athlete_id
       LEFT JOIN categories c ON c.id = r.category_id
-      LEFT JOIN clubs cl ON cl.id = a.club_id
-      WHERE r.event_id = ?
-      ORDER BY
-        CASE r.status
-          WHEN 'OK' THEN 0
-          WHEN 'DNF' THEN 1
-          WHEN 'DSQ' THEN 2
-          WHEN 'DNS' THEN 3
-          ELSE 9
-        END,
-        r.time_ms ASC
+      WHERE r.event_id = ? AND r.category_code IS NOT NULL
+      ORDER BY r.stage_no
     ");
     $st->execute([$eventId]);
 
-    Response::json(['items' => $st->fetchAll()]);
+    $stages = [];
+    $cats = [];
+    foreach ($st->fetchAll() as $r) {
+      $stage = (int)$r['stage_no'];
+      $stages[$stage] = true;
+      $code = (string)$r['category_code'];
+
+      if (!isset($cats[$code])) {
+        $cats[$code] = [
+          'code'    => $code,
+          'name'    => $r['category_name'] ?? $code,
+          'order'   => $r['category_order'] !== null ? (int)$r['category_order'] : PHP_INT_MAX,
+          'entries' => [],
+        ];
+      }
+
+      // Aynı kişiyi günler arasında birleştir: eşleşmişse sporcu id'si, değilse ad.
+      $name = trim($r['first_name'] . ' ' . $r['last_name']);
+      $key = $r['athlete_id'] !== null
+        ? 'a' . $r['athlete_id']
+        : 'n' . mb_strtolower($name, 'UTF-8');
+
+      $entry = &$cats[$code]['entries'][$key];
+      $entry ??= ['name' => $name, 'club_name' => $r['club_name'], 'total' => 0, 'results' => []];
+      $entry['club_name'] = $r['club_name']; // en son günün kulübü
+      $entry['total'] += (int)$r['points'];
+      $entry['results'][(string)$stage] = [
+        'time_sec' => $r['time_ms'] !== null ? intdiv((int)$r['time_ms'], 1000) : null,
+        'status'   => $r['status'],
+        'position' => $r['position'] !== null ? (int)$r['position'] : null,
+        'points'   => (int)$r['points'],
+      ];
+      unset($entry);
+    }
+
+    usort($cats, fn($a, $b) => [$a['order'], $a['code']] <=> [$b['order'], $b['code']]);
+
+    $categories = [];
+    foreach ($cats as $cat) {
+      $entries = array_values($cat['entries']);
+      usort($entries, fn($a, $b) => [$b['total'], $a['name']] <=> [$a['total'], $b['name']]);
+
+      // Toplam sırası: eşit toplam aynı sırayı alır; 0 puan sıralanmaz.
+      $prevTotal = null;
+      $prevRank = 0;
+      foreach ($entries as $i => &$e) {
+        if ($e['total'] <= 0) {
+          $e['rank'] = null;
+          continue;
+        }
+        $e['rank'] = $e['total'] === $prevTotal ? $prevRank : $i + 1;
+        $prevTotal = $e['total'];
+        $prevRank = $e['rank'];
+      }
+      unset($e);
+
+      $categories[] = ['code' => $cat['code'], 'name' => $cat['name'], 'entries' => $entries];
+    }
+
+    $stageList = array_keys($stages);
+    sort($stageList);
+
+    Response::json([
+      'event_id'   => $eventId,
+      'stages'     => $stageList,
+      'categories' => $categories,
+    ]);
   }
 
-  // Panel/hakem: upsert
-  public static function upsert(Request $req): void {
-    RequireAuth::run();
-    $b = $req->json ?? [];
+  /* ------------------------------ Admin ------------------------------ */
 
-    $eventId = (int)($b['event_id'] ?? 0);
-    $athleteId = (int)($b['athlete_id'] ?? 0);
-    $categoryId = isset($b['category_id']) ? (int)$b['category_id'] : null;
-    $timeMs = isset($b['time_ms']) ? (int)$b['time_ms'] : null;
-    $status = strtoupper(trim((string)($b['status'] ?? 'OK')));
-
-    if ($eventId <= 0 || $athleteId <= 0) {
-      Response::error('validation_error', 'event_id and athlete_id required', 422);
-      return;
-    }
-
-    $allowed = ['OK','DNF','DSQ','DNS'];
-    if (!in_array($status, $allowed, true)) {
-      Response::error('validation_error', 'invalid status', 422);
-      return;
-    }
+  /** GET /api/admin/events/{id}/scoring — günler: son içe aktarma + gelen kutusundaki dosya. */
+  public static function adminStatus(Request $req, array $params): void
+  {
+    Auth::requireAdmin();
+    $ev = self::eventOrFail((int)($params['id'] ?? 0));
+    if ($ev === null) return;
 
     $pdo = Db::pdo();
-
-    // unique(event_id, athlete_id) varsayımıyla upsert
     $st = $pdo->prepare("
-      INSERT INTO event_results (event_id, athlete_id, category_id, time_ms, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-      ON DUPLICATE KEY UPDATE
-        category_id = VALUES(category_id),
-        time_ms = VALUES(time_ms),
-        status = VALUES(status),
-        updated_at = NOW()
+      SELECT stage_no, source, original_name, file_sha1, rows_total, rows_matched,
+             unmatched_json, created_at
+      FROM event_result_imports WHERE event_id = ?
     ");
-    $st->execute([$eventId, $athleteId, $categoryId, $timeMs, $status]);
+    $st->execute([$ev['id']]);
+    $imports = [];
+    foreach ($st->fetchAll() as $row) {
+      $imports[(int)$row['stage_no']] = $row;
+    }
+
+    // Gelen kutusu: gun<N>.csv dosyaları; tanınmayan dosyalar ayrıca listelenir.
+    $inbox = [];
+    $otherFiles = [];
+    $dir = PrivateStorage::path(ResultImportService::INBOX_DIR . '/' . $ev['folder_key']);
+    if ($dir !== null && is_dir($dir)) {
+      foreach (scandir($dir) ?: [] as $name) {
+        if ($name === '.' || $name === '..' || !is_file("$dir/$name")) continue;
+        if (preg_match('/^gun([1-9])\.csv$/i', $name, $m)) {
+          $inbox[(int)$m[1]] = "$dir/$name";
+        } else {
+          $otherFiles[] = $name;
+        }
+      }
+    }
+
+    $count = max(
+      self::stageCount($ev),
+      $imports ? max(array_keys($imports)) : 0,
+      $inbox ? max(array_keys($inbox)) : 0
+    );
+
+    $stages = [];
+    for ($n = 1; $n <= $count; $n++) {
+      $imp = $imports[$n] ?? null;
+      $file = $inbox[$n] ?? null;
+      $stages[] = [
+        'stage_no' => $n,
+        'import'   => $imp ? [
+          'source'        => $imp['source'],
+          'original_name' => $imp['original_name'],
+          'rows_total'    => (int)$imp['rows_total'],
+          'rows_matched'  => (int)$imp['rows_matched'],
+          'unmatched'     => json_decode((string)($imp['unmatched_json'] ?? '[]'), true) ?: [],
+          'imported_at'   => $imp['created_at'],
+        ] : null,
+        'inbox'    => $file ? [
+          'name'        => basename($file),
+          'size_bytes'  => (int)filesize($file),
+          // Saat dilimli ISO: PHP'nin varsayılan dilimi (çoğu zaman UTC) tarayıcıda yerele çevrilir.
+          'modified_at' => date('c', (int)filemtime($file)),
+          // İçe aktarılandan farklı (yeni) bir dosya mı?
+          'is_new'      => !$imp || sha1_file($file) !== $imp['file_sha1'],
+        ] : null,
+      ];
+    }
+
+    Response::json([
+      'event_id'    => (int)$ev['id'],
+      'folder_key'  => $ev['folder_key'],
+      'stages'      => $stages,
+      'other_files' => $otherFiles,
+    ]);
+  }
+
+  /** POST /api/admin/events/{id}/scoring/{stage}/upload — alan adı: csv */
+  public static function adminUpload(Request $req, array $params): void
+  {
+    $user = Auth::requireAdmin();
+    $ev = self::eventOrFail((int)($params['id'] ?? 0));
+    if ($ev === null) return;
+    $stage = self::stageOrFail($params);
+    if ($stage === null) return;
+
+    $f = $_FILES['csv'] ?? null;
+    if (!is_array($f) || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string)$f['tmp_name'])) {
+      Response::error('upload_error', 'CSV dosyası yüklenemedi.', 422);
+      return;
+    }
+    $origName = (string)($f['name'] ?? 'sonuc.csv');
+    if (strtolower((string)pathinfo($origName, PATHINFO_EXTENSION)) !== 'csv') {
+      Response::error('validation_error', 'Yalnızca .csv dosyası yüklenebilir.', 422);
+      return;
+    }
+    if ((int)$f['size'] > ResultImportService::MAX_BYTES) {
+      Response::error('validation_error', 'Dosya çok büyük (en fazla 5 MB).', 422);
+      return;
+    }
+
+    // Önce okunabilir mi bak; bozuk dosya gelen kutusundaki eskisinin yerine geçmesin.
+    try {
+      ResultImportService::parseCsv((string)file_get_contents((string)$f['tmp_name']));
+    } catch (ApiException $e) {
+      Response::error($e->errorCode, $e->getMessage(), $e->status);
+      return;
+    }
+
+    $dest = PrivateStorage::path(ResultImportService::inboxKey($ev['folder_key'], $stage));
+    if ($dest === null) {
+      Response::error('private_storage_unavailable', 'Gizli depolama klasörü yazılamıyor.', 500);
+      return;
+    }
+    $dir = dirname($dest);
+    if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+      Response::error('upload_error', 'Klasör oluşturulamadı.', 500);
+      return;
+    }
+    if (!@move_uploaded_file((string)$f['tmp_name'], $dest)) {
+      Response::error('upload_error', 'Dosya taşınamadı.', 500);
+      return;
+    }
+    @chmod($dest, 0600);
+
+    self::runImport((int)$ev['id'], $stage, $dest, 'upload', $origName, (int)$user->id);
+  }
+
+  /** POST /api/admin/events/{id}/scoring/{stage}/import — FTP ile gelen dosyayı içe aktar. */
+  public static function adminImportInbox(Request $req, array $params): void
+  {
+    $user = Auth::requireAdmin();
+    $ev = self::eventOrFail((int)($params['id'] ?? 0));
+    if ($ev === null) return;
+    $stage = self::stageOrFail($params);
+    if ($stage === null) return;
+
+    $path = PrivateStorage::path(ResultImportService::inboxKey($ev['folder_key'], $stage));
+    if ($path === null || !is_file($path)) {
+      Response::error('not_found', "Gelen kutusunda gun{$stage}.csv yok.", 404);
+      return;
+    }
+
+    self::runImport((int)$ev['id'], $stage, $path, 'ftp', basename($path), (int)$user->id);
+  }
+
+  /** DELETE /api/admin/events/{id}/scoring/{stage} — o günün sonuçları + CSV silinir. */
+  public static function adminDeleteStage(Request $req, array $params): void
+  {
+    Auth::requireAdmin();
+    $ev = self::eventOrFail((int)($params['id'] ?? 0));
+    if ($ev === null) return;
+    $stage = self::stageOrFail($params);
+    if ($stage === null) return;
+
+    $pdo = Db::pdo();
+    $pdo->prepare("DELETE FROM event_results WHERE event_id = ? AND stage_no = ?")->execute([$ev['id'], $stage]);
+    $pdo->prepare("DELETE FROM event_result_imports WHERE event_id = ? AND stage_no = ?")->execute([$ev['id'], $stage]);
+
+    $path = PrivateStorage::path(ResultImportService::inboxKey($ev['folder_key'], $stage));
+    if ($path !== null && is_file($path)) {
+      @unlink($path);
+    }
 
     Response::noContent(204);
+  }
+
+  private static function runImport(int $eventId, int $stage, string $path, string $source, string $name, int $userId): void
+  {
+    try {
+      $summary = ResultImportService::import($eventId, $stage, $path, $source, $name, $userId);
+      Response::json($summary);
+    } catch (ApiException $e) {
+      Response::error($e->errorCode, $e->getMessage(), $e->status);
+    }
+  }
+
+  /** @return array{id:int,folder_key:string,start_date:string,end_date:string}|null */
+  private static function eventOrFail(int $eventId): ?array
+  {
+    $pdo = Db::pdo();
+    $st = $pdo->prepare("SELECT id, folder_key, start_date, end_date FROM events WHERE id = ?");
+    $st->execute([$eventId]);
+    $ev = $st->fetch();
+    if (!$ev) {
+      Response::error('event_not_found', 'Event not found', 404);
+      return null;
+    }
+
+    // folder_key = LPAD(id,5,'0') (EventController ile aynı kural)
+    if ((string)($ev['folder_key'] ?? '') === '') {
+      $ev['folder_key'] = str_pad((string)$eventId, 5, '0', STR_PAD_LEFT);
+      $pdo->prepare("UPDATE events SET folder_key = ? WHERE id = ?")->execute([$ev['folder_key'], $eventId]);
+    }
+    $ev['id'] = (int)$ev['id'];
+    return $ev;
+  }
+
+  private static function stageOrFail(array $params): ?int
+  {
+    $stage = (int)($params['stage'] ?? 0);
+    if ($stage < 1 || $stage > self::MAX_STAGES) {
+      Response::error('validation_error', 'Geçersiz gün numarası.', 422);
+      return null;
+    }
+    return $stage;
+  }
+
+  /** Yarışın gün sayısı (başlangıç–bitiş, en az 1). */
+  private static function stageCount(array $ev): int
+  {
+    $start = strtotime((string)$ev['start_date']);
+    $end = strtotime((string)$ev['end_date']);
+    if (!$start || !$end || $end < $start) return 1;
+    return min(self::MAX_STAGES, intdiv($end - $start, 86400) + 1);
   }
 }

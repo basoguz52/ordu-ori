@@ -20,13 +20,16 @@ final class SettingsController
     'results_ftp_base_dir' => 'uploads/events',
     'results_ftp_passive'  => '1',
     'results_ftp_note'     => '',
+    // Puan CSV'si için ayrı FTP hesabı (ana klasörü gizli depodaki results-inbox).
+    'results_ftp_csv_user' => '',
+    'results_ftp_csv_pass' => '',
   ];
 
   /** GET /api/admin/settings/ftp */
   public static function getFtp(Request $req): void
   {
     Auth::requireAdmin();
-    Response::json(['item' => self::readGroup(self::FTP_KEYS)]);
+    Response::json(['item' => self::ftpItem()]);
   }
 
   /** PUT /api/admin/settings/ftp */
@@ -51,7 +54,16 @@ final class SettingsController
       $stmt->execute([$key, $value]);
     }
 
-    Response::json(['item' => self::readGroup(self::FTP_KEYS)]);
+    Response::json(['item' => self::ftpItem()]);
+  }
+
+  /** FTP ayarları + CSV gelen kutusunun sunucudaki yolu (cPanel'de FTP hesabının ana klasörü). */
+  private static function ftpItem(): array
+  {
+    $item = self::readGroup(self::FTP_KEYS);
+    $root = PrivateStorage::root();
+    $item['csv_inbox_dir'] = $root !== null ? $root . '/' . \App\Services\ResultImportService::INBOX_DIR : '';
+    return $item;
   }
 
   /**

@@ -51,6 +51,15 @@ final class EventController
     $items = $query->get()->map(fn(Event $e) => $e->getAttributes())->all();
     self::attachFileUrls($items);
 
+    // Puanlı sonucu (içe aktarılmış CSV) olan yarışlar → Sonuçlar sayfasında "Puan Tablosu".
+    $scored = array_flip(array_map('intval', Db::pdo()
+      ->query("SELECT DISTINCT event_id FROM event_results")
+      ->fetchAll(PDO::FETCH_COLUMN)));
+    foreach ($items as &$it) {
+      $it['has_scores'] = isset($scored[(int)$it['id']]);
+    }
+    unset($it);
+
     Response::json(['items' => $items]);
   }
 

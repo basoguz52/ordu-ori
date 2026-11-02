@@ -14,6 +14,7 @@ import Yarismacilar from "@/pages/public/Yarismacilar";
 import YarismaKayit from "@/pages/public/YarismaKayit";
 import Iletisim from "@/pages/public/Iletisim";
 import Sonuclar from "@/pages/public/Sonuclar";
+import PuanTablosu from "@/pages/public/PuanTablosu";
 import FaaliyetTakvimi from "@/pages/public/FaaliyetTakvimi";
 import IlTemsilciligi from "@/pages/public/kurumsal/IlTemsilciligi";
 import Hakemlerimiz from "@/pages/public/kurumsal/Hakemlerimiz";
@@ -54,6 +55,7 @@ export const router = createBrowserRouter([
       { path: "/yarisma-kayit", element: <YarismaKayit /> },
       { path: "/iletisim", element: <Iletisim /> },
       { path: "/sonuclar", element: <Sonuclar /> },
+      { path: "/sonuclar/:id", element: <PuanTablosu /> },
       { path: "/faaliyet-takvimi", element: <FaaliyetTakvimi /> },
       { path: "/kurumsal/il-temsilciligi", element: <IlTemsilciligi /> },
       { path: "/kurumsal/hakemlerimiz", element: <Hakemlerimiz /> },

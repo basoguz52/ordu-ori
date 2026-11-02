@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
+  Medal,
   Search,
   Trophy,
   FileText,
@@ -57,7 +59,7 @@ function EventCard({ e, probe }: { e: EventItem; probe?: ResultProbe }) {
     official: !!key && !!probe?.official,
     splits: !!key && !!probe?.splits,
   };
-  const anyResult = has.overall || has.official || has.splits;
+  const anyResult = has.overall || has.official || has.splits || !!e.has_scores;
 
   return (
     <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -87,6 +89,14 @@ function EventCard({ e, probe }: { e: EventItem; probe?: ResultProbe }) {
       <div className="flex shrink-0 flex-wrap gap-2">
         {anyResult ? (
           <>
+            {e.has_scores && (
+              <Link
+                to={`/sonuclar/${e.id}`}
+                className={cn(buttonVariants({ variant: "default", size: "sm" }))}
+              >
+                <Medal /> Puan Tablosu
+              </Link>
+            )}
             {has.overall && (
               <ResultLink
                 href={resultFileUrl(key!, "overall")}

@@ -18,3 +18,14 @@ export function formatDateRangeTR(start?: string | null, end?: string | null): s
   if (!e || e === s) return s;
   return `${s} – ${e}`;
 }
+
+/**
+ * Türkçe kurallarla her kelimenin yalnızca ilk harfini büyük yapar:
+ * "ahmet CAN" -> "Ahmet Can", "IŞIK" -> "Işık", "ayşe-nur" -> "Ayşe-Nur".
+ * Boşlukları kırpmaz (yazarken kullanılabilsin diye).
+ */
+export function toTitleCaseTR(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replace(/(^|[\s\-'’])(\S)/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase("tr-TR"));
+}

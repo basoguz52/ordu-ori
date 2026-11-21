@@ -174,11 +174,21 @@ final class AthleteController
 
   // ---------- Ortak ----------
 
+  /** Türkçe kurallarla her kelimenin yalnızca ilk harfi büyük: "IŞIK ayşe-nur" -> "Işık Ayşe-Nur". */
+  private static function titleCaseTr(string $s): string
+  {
+    $s = mb_strtolower(strtr($s, ['I' => 'ı', 'İ' => 'i']), 'UTF-8');
+    return preg_replace_callback('/(^|[\s\-\'’])(\S)/u', function ($m) {
+      $c = strtr($m[2], ['i' => 'İ', 'ı' => 'I']);
+      return $m[1] . mb_strtoupper($c, 'UTF-8');
+    }, $s) ?? $s;
+  }
+
   /** Yeni sporcu oluştur (kulüp + sahiplik dışarıdan verilir). Yanıtı kendisi yollar. */
   private static function createForClub(array $b, int $clubId, int $ownerId): void
   {
-    $first  = trim((string)($b['first_name'] ?? ''));
-    $last   = trim((string)($b['last_name'] ?? ''));
+    $first  = self::titleCaseTr(trim((string)($b['first_name'] ?? '')));
+    $last   = self::titleCaseTr(trim((string)($b['last_name'] ?? '')));
     $gender = strtoupper(trim((string)($b['gender'] ?? '')));
 
     $birthYearRaw = $b['birth_year'] ?? null;
@@ -254,7 +264,7 @@ final class AthleteController
         }
         $val = $val !== '' ? $val : null;
       } elseif ($f === 'first_name' || $f === 'last_name') {
-        $val = trim((string)$val);
+        $val = self::titleCaseTr(trim((string)$val));
       } elseif ($f === 'birth_year') {
         $val = ($val === null || $val === '') ? null : (int)$val;
       } elseif ($f === 'license_no' || $f === 'si_chip_no') {

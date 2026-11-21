@@ -11,6 +11,7 @@ import {
 } from "@/api/athletes";
 import { ApiError } from "@/lib/apiClient";
 import { isValidTcNo } from "@/lib/validation";
+import { toTitleCaseTR } from "@/lib/format";
 import { categoryFits, fittingCategories } from "@/lib/categories";
 import { PageHeader } from "@/components/common/PageHeader";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -148,8 +149,8 @@ function AthleteForm({
     }
 
     const input: AthleteInput = {
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
+      first_name: toTitleCaseTR(form.first_name.trim()),
+      last_name: toTitleCaseTR(form.last_name.trim()),
       gender: form.gender,
       national_id: form.national_id.trim(),
       category_id: Number(form.category_id),
@@ -201,7 +202,7 @@ function AthleteForm({
             <Input
               id="first_name"
               value={form.first_name}
-              onChange={(e) => set("first_name", e.target.value)}
+              onChange={(e) => set("first_name", toTitleCaseTR(e.target.value))}
             />
           </div>
           <div className="space-y-1.5">
@@ -209,7 +210,7 @@ function AthleteForm({
             <Input
               id="last_name"
               value={form.last_name}
-              onChange={(e) => set("last_name", e.target.value)}
+              onChange={(e) => set("last_name", toTitleCaseTR(e.target.value))}
             />
           </div>
         </div>

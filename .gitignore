@@ -29,3 +29,7 @@ docker/db/init/01_orienteering.sql
 .DS_Store
 Thumbs.db
 *.log
+
+# PHPUnit önbelleği
+.phpunit.result.cache
+.phpunit.cache/

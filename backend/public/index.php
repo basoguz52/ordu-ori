@@ -68,6 +68,8 @@ $router->add('POST', '/api/contact', fn($req) => ContactController::send($req));
 // Auth
 $router->add('POST', '/api/login', fn($req) => AuthController::login($req));
 $router->add('POST', '/api/register', fn($req) => AuthController::register($req));
+$router->add('POST', '/api/auth/forgot-password', fn($req) => AuthController::forgotPassword($req));
+$router->add('POST', '/api/auth/reset-password', fn($req) => AuthController::resetPassword($req));
 $router->add('GET',  '/api/me',    fn($req) => AuthController::me($req));
 $router->add('POST', '/api/me/change-password', fn($req) => AuthController::changePassword($req));
 $router->add('PUT',  '/api/me/profile', fn($req) => AuthController::updateProfile($req));

@@ -41,3 +41,27 @@ export function useChangePassword() {
     },
   });
 }
+
+/** POST /api/auth/forgot-password → { ok: true } (hesap olsun olmasın aynı yanıt). */
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: async (email: string) => {
+      await api.post("/auth/forgot-password", { email });
+    },
+  });
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+  password_confirm: string;
+}
+
+/** POST /api/auth/reset-password → 204. Token tek kullanımlık, 1 saat geçerli. */
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: async (payload: ResetPasswordPayload) => {
+      await api.post("/auth/reset-password", payload);
+    },
+  });
+}

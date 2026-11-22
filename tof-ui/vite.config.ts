@@ -9,6 +9,22 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Nadiren değişen kütüphaneler ayrı dosyada: deploy sonrası tarayıcı önbellekte tutar.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id)) {
+            return "vendor-react";
+          }
+          if (id.includes("@tanstack") || id.includes("axios")) return "vendor-data";
+          // İkonlar tek dosyada (yoksa her ikon ayrı küçük dosya olur → çok sayıda istek)
+          if (id.includes("lucide-react")) return "vendor-icons";
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       "/api": {

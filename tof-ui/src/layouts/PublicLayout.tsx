@@ -1,4 +1,7 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { Suspense } from "react";
+import { PageTitle } from "@/components/layout/PageTitle";
+import { PageLoader } from "@/components/layout/PageLoader";
 import { Compass, Menu, X } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { buttonVariants } from "@/components/ui/button";
@@ -84,7 +87,10 @@ export function PublicLayout() {
       </header>
 
       <main key={pathname} className="container flex-1 py-6 sm:py-8">
-        <Outlet />
+        <PageTitle />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <footer className="border-t py-6 text-sm text-muted-foreground">

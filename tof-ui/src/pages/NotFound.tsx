@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { buttonVariants } from "@/components/ui/button";
+import { PageTitle } from "@/components/layout/PageTitle";
 
 export default function NotFound() {
   return (
     <div className="grid min-h-screen place-items-center p-6 text-center">
+      <PageTitle />
       <div className="space-y-4">
         <p className="text-6xl font-bold text-primary">404</p>
         <h1 className="text-xl font-semibold">Sayfa bulunamadı</h1>

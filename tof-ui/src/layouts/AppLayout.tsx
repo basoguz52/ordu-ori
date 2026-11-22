@@ -1,4 +1,7 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Suspense } from "react";
+import { PageTitle } from "@/components/layout/PageTitle";
+import { PageLoader } from "@/components/layout/PageLoader";
 import { ChevronDown, Compass, LogOut, Menu, UserRound, X } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { buttonVariants } from "@/components/ui/button";
@@ -217,7 +220,10 @@ export function AppLayout() {
       </header>
 
       <main className="container flex-1 py-8">
-        <Outlet />
+        <PageTitle />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

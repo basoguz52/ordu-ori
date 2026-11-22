@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDateTR } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { usePageTitle } from "@/lib/usePageTitle";
 
 export function PostDetailPage({
   basePath,
@@ -16,6 +17,7 @@ export function PostDetailPage({
 }) {
   const { slug = "" } = useParams();
   const { data, isLoading, isError } = usePost(slug);
+  usePageTitle(data?.title);
 
   if (isLoading) {
     return (

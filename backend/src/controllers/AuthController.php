@@ -1,9 +1,52 @@
 <?php
 
 use App\Models\User;
+use App\Support\Mailer;
 
 final class AuthController
 {
+  /** Hatalı deneme penceresi (dakika) ve sınırları */
+  private const ATTEMPT_WINDOW_MIN = 15;
+  private const MAX_FAILS_PER_EMAIL = 5;
+  private const MAX_FAILS_PER_IP = 20;
+  private const MAX_RESET_REQUESTS_PER_IP = 5;
+  private const RESET_TOKEN_TTL_MIN = 60;
+
+  private static function clientIp(): string
+  {
+    return substr((string)($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 0, 45);
+  }
+
+  /** Son ATTEMPT_WINDOW_MIN dakikadaki deneme sayısı (kind + e-posta veya IP). */
+  private static function countAttempts(string $kind, string $column, string $value): int
+  {
+    $col = $column === 'email' ? 'email' : 'ip';
+    $st = Db::pdo()->prepare(
+      "SELECT COUNT(*) FROM login_attempts
+        WHERE kind = ? AND {$col} = ? AND created_at > NOW() - INTERVAL " . self::ATTEMPT_WINDOW_MIN . " MINUTE"
+    );
+    $st->execute([$kind, $value]);
+    return (int)$st->fetchColumn();
+  }
+
+  private static function recordAttempt(string $kind, ?string $email): void
+  {
+    $pdo = Db::pdo();
+    $pdo->prepare('INSERT INTO login_attempts (kind, email, ip) VALUES (?, ?, ?)')
+      ->execute([$kind, $email, self::clientIp()]);
+    // Eski kayıtları temizle (tablo şişmesin)
+    $pdo->exec('DELETE FROM login_attempts WHERE created_at < NOW() - INTERVAL 1 DAY');
+  }
+
+  private static function tooManyAttempts(string $what = 'hatalı deneme'): void
+  {
+    Response::error(
+      'too_many_attempts',
+      "Çok fazla {$what}. Lütfen " . self::ATTEMPT_WINDOW_MIN . ' dakika sonra tekrar deneyin.',
+      429
+    );
+  }
+
   /** Public kullanıcı gösterimi (parola hash'i asla dönmez). */
   private static function publicUser(User $u): array
   {
@@ -29,12 +72,22 @@ final class AuthController
       return;
     }
 
+    if (self::countAttempts('login', 'email', $email) >= self::MAX_FAILS_PER_EMAIL
+      || self::countAttempts('login', 'ip', self::clientIp()) >= self::MAX_FAILS_PER_IP) {
+      self::tooManyAttempts();
+      return;
+    }
+
     $u = User::where('email', $email)->first();
 
     if (!$u || !password_verify($password, $u->password_hash)) {
+      self::recordAttempt('login', $email);
       Response::error('invalid_credentials', 'Invalid email or password', 401);
       return;
     }
+
+    // Başarılı giriş: bu e-postanın hatalı deneme sayacı sıfırlanır
+    Db::pdo()->prepare("DELETE FROM login_attempts WHERE kind = 'login' AND email = ?")->execute([$email]);
 
     // Hesap durumu: pending (admin onayı bekliyor) / rejected girişe kapalı
     $status = $u->status ?? 'active';
@@ -225,5 +278,107 @@ final class AuthController
     session_regenerate_id(true);
 
     Response::noContent(204);
+  }
+
+  /**
+   * POST /api/auth/forgot-password {email}
+   * Hesap varsa ve aktifse e-postaya 1 saatlik sıfırlama bağlantısı yollar.
+   * Yanıt hesap olsun olmasın aynıdır (hangi e-postaların kayıtlı olduğu sızmasın).
+   */
+  public static function forgotPassword(Request $req): void
+  {
+    $email = strtolower(trim((string)(($req->json ?? [])['email'] ?? '')));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      Response::error('validation_error', 'Geçerli bir e-posta adresi girin.', 422);
+      return;
+    }
+
+    if (self::countAttempts('reset', 'ip', self::clientIp()) >= self::MAX_RESET_REQUESTS_PER_IP) {
+      self::tooManyAttempts('şifre sıfırlama isteği');
+      return;
+    }
+    self::recordAttempt('reset', $email);
+
+    $u = User::where('email', $email)->first();
+    if ($u && ($u->status ?? 'active') === 'active') {
+      $token = bin2hex(random_bytes(32));
+      $pdo = Db::pdo();
+      // Önceki kullanılmamış bağlantılar geçersiz olur; yalnızca en sonuncusu çalışır
+      $pdo->prepare('DELETE FROM password_resets WHERE user_id = ?')->execute([(int)$u->id]);
+      $pdo->prepare(
+        'INSERT INTO password_resets (user_id, token_hash, expires_at)
+         VALUES (?, ?, NOW() + INTERVAL ' . self::RESET_TOKEN_TTL_MIN . ' MINUTE)'
+      )->execute([(int)$u->id, hash('sha256', $token)]);
+
+      $link = self::appUrl() . '/sifre-sifirla?token=' . $token;
+      $body =
+        "Merhaba {$u->full_name},\n\n" .
+        "orduoryantiring.com.tr hesabınız için şifre sıfırlama isteği aldık.\n" .
+        "Yeni şifre belirlemek için aşağıdaki bağlantıyı açın (1 saat geçerlidir):\n\n" .
+        "{$link}\n\n" .
+        "Bu isteği siz yapmadıysanız bu e-postayı dikkate almayın; şifreniz değişmez.\n";
+
+      if (!Mailer::send($u->email, 'Şifre sıfırlama — Ordu Oryantiring', $body)) {
+        Response::error('mail_failed', 'E-posta gönderilemedi. Lütfen daha sonra tekrar deneyin.', 500);
+        return;
+      }
+    }
+
+    Response::json(['ok' => true]);
+  }
+
+  /** POST /api/auth/reset-password {token, password, password_confirm} */
+  public static function resetPassword(Request $req): void
+  {
+    $b = $req->json ?? [];
+    $token   = trim((string)($b['token'] ?? ''));
+    $next    = (string)($b['password'] ?? '');
+    $confirm = (string)($b['password_confirm'] ?? '');
+
+    if ($token === '' || $next === '' || $confirm === '') {
+      Response::error('validation_error', 'token, password, password_confirm required', 422);
+      return;
+    }
+    if ($next !== $confirm) {
+      Response::error('validation_error', 'Şifreler eşleşmiyor.', 422);
+      return;
+    }
+    if (strlen($next) < 8) {
+      Response::error('validation_error', 'Şifre en az 8 karakter olmalı.', 422);
+      return;
+    }
+
+    $pdo = Db::pdo();
+    $st = $pdo->prepare(
+      'SELECT id, user_id FROM password_resets
+        WHERE token_hash = ? AND expires_at > NOW()'
+    );
+    $st->execute([hash('sha256', $token)]);
+    $row = $st->fetch();
+    $u = $row ? User::find((int)$row['user_id']) : null;
+    if (!$u || ($u->status ?? 'active') !== 'active') {
+      Response::error('invalid_token', 'Bağlantı geçersiz veya süresi dolmuş. Yeniden şifre sıfırlama isteyin.', 400);
+      return;
+    }
+
+    $u->password_hash = password_hash($next, PASSWORD_DEFAULT);
+    $u->save();
+
+    // Bağlantı tek kullanımlık: kullanıcının tüm sıfırlama kayıtları silinir
+    $pdo->prepare('DELETE FROM password_resets WHERE user_id = ?')->execute([(int)$u->id]);
+    $pdo->prepare("DELETE FROM login_attempts WHERE kind = 'login' AND email = ?")->execute([$u->email]);
+
+    Response::noContent(204);
+  }
+
+  /** E-postadaki bağlantı için site adresi: .env APP_URL, yoksa isteğin host'u. */
+  private static function appUrl(): string
+  {
+    $url = rtrim((string)env('APP_URL', ''), '/');
+    if ($url !== '') return $url;
+    $https = (($_SERVER['HTTPS'] ?? '') === 'on')
+      || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $host = (string)($_SERVER['HTTP_HOST'] ?? 'orduoryantiring.com.tr');
+    return ($https ? 'https' : 'http') . '://' . $host;
   }
 }

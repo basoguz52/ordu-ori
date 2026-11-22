@@ -70,7 +70,15 @@ export default function Login() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Şifre</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Şifre</Label>
+                <Link
+                  to="/sifremi-unuttum"
+                  className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                >
+                  Şifremi unuttum
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"

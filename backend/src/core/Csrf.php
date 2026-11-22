@@ -7,14 +7,17 @@
  * - JS'in okuyabilmesi için `XSRF-TOKEN` cookie'sine yazılır (HttpOnly DEĞİL).
  * - Frontend bu cookie'yi okuyup mutasyon isteklerinde `X-CSRF-Token`
  *   header'ı olarak geri gönderir; burada session token ile karşılaştırılır.
- * - Güvenli metodlar (GET/HEAD/OPTIONS) ve ön-yetki uçları (login/register/contact)
+ * - Güvenli metodlar (GET/HEAD/OPTIONS) ve ön-yetki uçları (login/register/contact/şifre sıfırlama)
  *   muaftır (henüz oturum/token yokken çalışabilmeleri gerekir).
  */
 final class Csrf
 {
   const COOKIE = 'XSRF-TOKEN';
   const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
-  const EXEMPT_PATHS = ['/api/login', '/api/register', '/api/contact'];
+  const EXEMPT_PATHS = [
+    '/api/login', '/api/register', '/api/contact',
+    '/api/auth/forgot-password', '/api/auth/reset-password',
+  ];
 
   /** Session token'ını döndür; yoksa üret. */
   public static function token(): string

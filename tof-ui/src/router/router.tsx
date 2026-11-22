@@ -5,6 +5,8 @@ import { ProtectedRoute, RoleGate } from "@/auth/ProtectedRoute";
 import Home from "@/pages/public/Home";
 import Login from "@/pages/Login";
 import Kayit from "@/pages/Kayit";
+import SifremiUnuttum from "@/pages/SifremiUnuttum";
+import SifreSifirla from "@/pages/SifreSifirla";
 import Duyurular from "@/pages/public/Duyurular";
 import DuyuruDetay from "@/pages/public/DuyuruDetay";
 import Haberler from "@/pages/public/Haberler";
@@ -47,6 +49,8 @@ export const router = createBrowserRouter([
       { path: "/", element: <Home /> },
       { path: "/giris", element: <Login /> },
       { path: "/kayit", element: <Kayit /> },
+      { path: "/sifremi-unuttum", element: <SifremiUnuttum /> },
+      { path: "/sifre-sifirla", element: <SifreSifirla /> },
       { path: "/duyurular", element: <Duyurular /> },
       { path: "/duyurular/:slug", element: <DuyuruDetay /> },
       { path: "/haberler", element: <Haberler /> },

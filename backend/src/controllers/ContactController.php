@@ -1,12 +1,12 @@
 <?php
 
-use PHPMailer\PHPMailer\PHPMailer;
+use App\Support\Mailer;
 
 final class ContactController
 {
     public static function send(Request $req): void
     {
-        $cfg = require __DIR__ . '/../config/mail.php';
+        $cfg = Mailer::config();
         $data = $req->json ?? [];
 
         // Honeypot (frontend'de gizli "website" alanı)
@@ -39,13 +39,6 @@ final class ContactController
             "IP: {$ip}\n\n" .
             "Mesaj:\n{$message}\n";
 
-        // Debug modunda gerçekten mail atma, logla (eski $body tanımsız bug'ı düzeltildi)
-        if (!empty($cfg['debug'])) {
-            error_log("[CONTACT DEBUG]\n" . $body);
-            Response::json(['ok' => true, 'debug' => true]);
-            return;
-        }
-
         // Basit rate limit: IP başına 30sn (shared hosting için yeterli)
         $rateFile = sys_get_temp_dir() . '/contact_rate_' . md5($ip);
         $now = time();
@@ -56,33 +49,10 @@ final class ContactController
         }
         @file_put_contents($rateFile, (string)$now);
 
-        // PHPMailer (Composer autoload — manuel include kaldırıldı)
-        $mail = new PHPMailer(true);
-
-        try {
-            $mail->CharSet = 'UTF-8';
-            $mail->isSMTP();
-            $mail->Host = $cfg['smtp_host'];
-            $mail->SMTPAuth = true;
-            $mail->Username = $cfg['smtp_user'];
-            $mail->Password = $cfg['smtp_pass'];
-            $mail->Port = (int)$cfg['smtp_port'];
-            $mail->SMTPSecure = $cfg['smtp_secure']; // 'ssl' or 'tls'
-
-            // From: kendi domain mailbox
-            $mail->setFrom($cfg['from'], $cfg['from_name']);
-            $mail->addAddress($cfg['to']);
-
-            // Reply-To: formu dolduran kişi
-            $mail->addReplyTo($email, $name);
-
-            $mail->Subject = '[İletişim] ' . $subject;
-            $mail->Body = $body;
-
-            $mail->send();
-            Response::json(['ok' => true]);
-        } catch (\Throwable $e) {
+        if (!Mailer::send($cfg['to'], '[İletişim] ' . $subject, $body, $email, $name)) {
             Response::error('mail_failed', 'Mail gönderilemedi. SMTP ayarlarını kontrol edin.', 500);
+            return;
         }
+        Response::json(!empty($cfg['debug']) ? ['ok' => true, 'debug' => true] : ['ok' => true]);
     }
 }

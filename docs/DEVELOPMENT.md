@@ -14,7 +14,8 @@ Amaç: "bende çalışıyordu ama canlıda patladı" sorununu bitirmek.
 cp .env.example .env                     # docker-compose için (local DB kimlikleri)
 cp backend/.env.example backend/.env     # uygulama config'i (istersen; Docker'da şart değil)
 
-# 2) PHP bağımlılıklarını kur (vendor/ üretir — sunucuya FTP'lenecek olan da budur)
+# 2) PHP bağımlılıklarını kur (local geliştirme + testler için; sunucuya giden vendor/ için
+#    aşağıdaki "Otomatik testler" bölümündeki --no-dev notuna bak)
 docker compose run --rm php composer install
 
 # 3) (Opsiyonel ama önerilir) Prod verisini yükle
@@ -43,6 +44,24 @@ npm run dev            # http://localhost:5173  ('/api' -> 127.0.0.1:8000 proxy)
 - Başlat: `docker compose up`  ·  Durdur: `Ctrl+C` / `docker compose down`
 - Bağımlılık değişti: `docker compose run --rm php composer install`
 - DB'yi sıfırdan yükle: `docker compose down -v && docker compose up`
+
+## Otomatik testler (PHPUnit)
+
+Puan hesabı (`ResultImportService::score`), OE2010 CSV okuyucu (`parseCsv`, `parseTime`) ve
+TC Kimlik No doğrulaması (`App\Support\TcNo`) için birim testleri `backend/tests/` altındadır.
+DB gerektirmez.
+
+```bash
+cd backend
+composer install          # dev bağımlılıklarıyla (PHPUnit dahil)
+composer test             # = vendor/bin/phpunit
+```
+
+Docker ile: `docker compose run --rm php composer test`.
+
+**Deploy uyarısı:** PHPUnit yalnızca geliştirme bağımlılığıdır. Sunucuya FTP'lenecek `vendor/`'ü
+**`composer install --no-dev --optimize-autoloader`** ile üret; aksi halde test paketleri de yüklenir.
+`backend/tests/` ve `phpunit.xml` de sunucuya gönderilmez.
 
 ## Sürüm notu (ÖNEMLİ)
 `vendor/` local'de üretilip **canlının PHP sürümünde** çalışacak. Bu yüzden:

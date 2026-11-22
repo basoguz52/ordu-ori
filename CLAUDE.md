@@ -63,7 +63,9 @@ sonuçlar, sezon tablosu). **Yeni sürüm canlıda çalışıyor**; iş artık b
   Docker açılmıyor; o durumda XAMPP'in `php.exe` + MariaDB'si ile **ayrı bir test DB'sinde**
   (`docker/db/init/*.sql` yüklenerek) `php -S 127.0.0.1:8000 -t backend/public backend/public/index.php`
   ile test edilir, iş bitince test DB'si silinir.
-- Otomatik test yok; değişiklikler gerçek DB'ye karşı API + tarayıcıda doğrulanır.
+- Birim testleri: `cd backend && composer test` (PHPUnit; puan hesabı, OE2010 CSV okuyucu, TC doğrulama;
+  DB gerektirmez). Diğer değişiklikler gerçek DB'ye karşı API + tarayıcıda doğrulanır.
+- Sunucuya giden `vendor/` **`composer install --no-dev`** ile üretilir (PHPUnit canlıya gitmez).
 
 ## Durum
 
@@ -77,7 +79,6 @@ Kalan işler:
 2. **Legacy kolon temizliği**: `events.bulletin_path/oncikis_path/kesincikis_path` hâlâ `event_files`
    ile birlikte kullanılıyor; veriyi `event_files`'a taşıyıp kolonları ve kod yollarını kaldırmak.
 3. Docker DB'sine 011–012'yi uygulamak (Docker çalışınca).
-4. Puan hesabı / CSV okuyucu için otomatik testler.
-5. Ertelendi: kulüp puanı (kural belirlenince), canlı sonuçların ham OE2010 HTML yerine düzgün sayfa
+4. Ertelendi: kulüp puanı (kural belirlenince), canlı sonuçların ham OE2010 HTML yerine düzgün sayfa
    olması, frontend bundle'ını sayfa bazlı bölmek (~600 KB).
-6. Duyurular/Haberler/Kurumsal içerik girişi (kullanıcı, panelden).
+5. Duyurular/Haberler/Kurumsal içerik girişi (kullanıcı, panelden).

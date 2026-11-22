@@ -13,8 +13,19 @@
       "App\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
   "config": {
     "optimize-autoloader": true,
     "sort-packages": true
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10.5"
+  },
+  "scripts": {
+    "test": "phpunit"
   }
 }

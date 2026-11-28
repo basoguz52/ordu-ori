@@ -18,6 +18,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { buttonVariants } from "@/components/ui/button";
 import { formatDateRangeTR } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { usePageTitle } from "@/lib/usePageTitle";
 
 /** "total" ya da gün numarası */
 type View = "total" | number;
@@ -130,6 +131,7 @@ function TotalTable({ category, stages }: { category: ScoreCategory; stages: num
 export default function PuanTablosu() {
   const { id } = useParams();
   const { data: event } = useEvent(id);
+  usePageTitle(event?.name ? `${event.name} — Puan Tablosu` : null);
   const { data, isLoading, isError } = useEventScores(id);
 
   const multiDay = (data?.stages.length ?? 0) > 1;

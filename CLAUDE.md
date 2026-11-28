@@ -28,6 +28,9 @@ sonuçlar, sezon tablosu). **Yeni sürüm canlıda çalışıyor**; iş artık b
 - `tof-ui/` — yeni frontend: Vite + React + TypeScript + Tailwind + shadcn tarzı bileşenler +
   TanStack Query, tek axios istemcisi `src/lib/apiClient.ts`. Public sayfalar `src/pages/public`,
   panel `/app` altında `src/pages/app`, rol kapıları `auth/ProtectedRoute.tsx` (`RoleGate`).
+  Route'lar `src/router/router.tsx`: sayfalar `lazyWithReload` ile ayrı chunk (deploy sonrası eski chunk
+  hatasında sayfa bir kez yenilenir); sekme başlığı route `handle: h("…")` + `components/layout/PageTitle`,
+  içerik başlığı için `usePageTitle()`.
 - `tof-ui-legacy/` — eski frontend, yalnızca referans.
 - `deploy/` — FTP paketi (**git'te yok**, `.gitignore`). Ana kılavuz `deploy/OKU-BENI.md`.
 
@@ -80,5 +83,5 @@ Kalan işler:
    ile birlikte kullanılıyor; veriyi `event_files`'a taşıyıp kolonları ve kod yollarını kaldırmak.
 3. Docker DB'sine 011–012'yi uygulamak (Docker çalışınca).
 4. Ertelendi: kulüp puanı (kural belirlenince), canlı sonuçların ham OE2010 HTML yerine düzgün sayfa
-   olması, frontend bundle'ını sayfa bazlı bölmek (~600 KB).
+   olması.
 5. Duyurular/Haberler/Kurumsal içerik girişi (kullanıcı, panelden).
